@@ -254,4 +254,4 @@ class OBBValidator(DetectionValidator):
                 with open(f'{pred_txt_poly_int_max / "submitted"}.txt', "a") as f:
                     f.writelines(
                         f"{image_id} {max(int(p[0]), 0)} {max(int(p[1]), 0)} {max(int(p[2]), 0)} {max(int(p[3]), 0)} {max(int(p[4]), 0)} {max(int(p[5]), 0)} {max(int(p[6]), 0)} {max(int(p[7]), 0)} {score}\n")
-                os.remove(str(pred_json))
+            os.remove(str(pred_json))
