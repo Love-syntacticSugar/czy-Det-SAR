@@ -255,3 +255,54 @@ class OBBValidator(DetectionValidator):
                     f.writelines(
                         f"{image_id} {max(int(p[0]), 0)} {max(int(p[1]), 0)} {max(int(p[2]), 0)} {max(int(p[3]), 0)} {max(int(p[4]), 0)} {max(int(p[5]), 0)} {max(int(p[6]), 0)} {max(int(p[7]), 0)} {score}\n")
             os.remove(str(pred_json))
+        if self.args.save_json and self.args.is_SAR_split and self.args.is_SAR and len(self.jdict):
+            import json
+            import re
+            from collections import defaultdict
+
+            pred_json = self.save_dir / "predictions.json"  # predictions
+            pred_txt_poly_int_max = self.save_dir / "int_max"  # 取整+max
+            pred_txt_poly_int_max.mkdir(parents=True, exist_ok=True)
+            data = json.load(open(pred_json))
+
+            merged_results = defaultdict(list)
+            LOGGER.info(f"Saving merged predictions with DOTA format to {pred_txt_poly_int_max}...")
+            for d in data:
+                # 原先官方的d["image_id"]是没有后缀的，但是我在pred_to_json方法中加了.jpg的后缀。但无所谓，正则表达式匹配不到.jpg
+                image_id = d["image_id"].split("__")[0] + ".jpg"
+                pattern = re.compile(r"\d+___\d+")
+                x, y = (int(c) for c in re.findall(pattern, d["image_id"])[0].split("___"))
+                bbox, score, cls = d["rbox"], d["score"], d["category_id"]
+                bbox[0] += x
+                bbox[1] += y
+                bbox.extend([score, cls])
+                merged_results[image_id].append(bbox)
+            for image_id, bbox in merged_results.items():
+                bbox = torch.tensor(bbox)
+                max_wh = torch.max(bbox[:, :2]).item() * 2
+                c = bbox[:, 6:7] * max_wh  # classes
+                scores = bbox[:, 5]  # scores
+                b = bbox[:, :5].clone()
+                b[:, :2] += c
+                # 0.3 could get results close to the ones from official merging script, even slightly better.
+                # TODO 可修改：在non_max_suppression方法那里是0.5，这里表示iou大于0.3就丢弃，更苛刻了。
+                #  1.而你要知道：你有整整5w张ship由于imgsizs=256<crop_size，压根没做过裁剪，它们其实可以不用做这里的NMS的，
+                #  就像以前那样直接拿来用但这里又做了一次NMS，而且比前向传播那里的non_max_suppression方法更严格用的是0.3.
+                #  导致可能又有一些ship被丢掉了。你懂我的意思嘛？我的意思是可能会比之前的效果差，因为筛选更严格了。如果不想这么严格怎么办
+                #  答：用0.5的阈值！
+                #  2.但其实话又说回来了。这次比赛不比DOTA，我认为单张图像预测的结果中，重复的概率不高（又不是那种足球场和操场框重合），所以对于
+                #  imgsizs=256的预测结果，0.3的阈值和0.5的阈值我认为是差不多的。所以我不认为要因为这一点将0.3改为0.5.
+                #  3.此外，这里的NMS主要就是针对的gap=200那里重复的预测结果，这点你心里要有数
+                #  4.后续也值得一试好吧，搞一个0.5版本的，反正10几分钟就预测出来了
+                i = ops.nms_rotated(b, scores, 0.3)
+                bbox = bbox[i]
+
+                b = ops.xywhr2xyxyxyxy(bbox[:, :5]).view(-1, 8)
+                for x in torch.cat([b, bbox[:, 5:7]], dim=-1).tolist():
+                    p = [i for i in x[:-2]]  # poly
+                    score = round(x[-2], 4)  # TODO 也可以改一改
+
+                    with open(f'{pred_txt_poly_int_max / "submitted"}.txt', "a") as f:
+                        f.writelines(
+                            f"{image_id} {max(int(p[0]), 0)} {max(int(p[1]), 0)} {max(int(p[2]), 0)} {max(int(p[3]), 0)} {max(int(p[4]), 0)} {max(int(p[5]), 0)} {max(int(p[6]), 0)} {max(int(p[7]), 0)} {score}\n")
+            os.remove(str(pred_json))

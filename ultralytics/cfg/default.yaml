@@ -133,6 +133,7 @@ half_precise: True # 控制save_model的时候是否保存全精度的模型
 half: False # 这个是官方的参数，我只不过把它移下来了。控制val的时候是否用半精度的模型
 save_img_num: 1   # val方法保存的图片数量
 is_SAR: False # eval_json方法需要用到的参数
+is_SAR_split: False # eval_json方法需要用到的参数,若为True，则表明你对图像进行了split
 Albumentations: True # 控制是否使用Albumentations包、【注意，v8关于 Albumentations包默认用了这几个：
 #                A.Blur(p=0.01),
 #                A.MedianBlur(p=0.01),
