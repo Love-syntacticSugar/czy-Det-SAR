@@ -364,6 +364,34 @@ class BaseTrainer:
         # 而新版呢？只在梯度更新后进行zero_grad
         # 思考了一下：可能是不为了浪费梯度？因为你每一个epoch后进行zero_grad没道理的，不就浪费了最后几个batch算出来的梯度了！
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
+
+        # SEEME 以下是我为了画图单独拎出来的代码.这里的代码非常值得学习！所以我并未删除而是注释掉，供下次学习参考
+        #  总之目的是：为了验证经过v8一大堆的预处理之后的目标框是否还和原先的图像的目标框重合。这里拿到的图像是已经加了原图annotation的图像
+        #  在此基础上又调用plot_training_samples方法进行绘制。如果两个框不一样那很容易就能看出来！！！！！
+        #  下次如果你又要跑，那直接就把底下while True:的代码块注释掉就好了！
+        # self.epoch = epoch
+        # self.run_callbacks("on_train_epoch_start")
+        # with warnings.catch_warnings():
+        #     warnings.simplefilter("ignore")  # suppress 'Detected lr_scheduler.step() before optimizer.step()'
+        #     self.scheduler.step()
+        #
+        # self.model.train()
+        # if RANK != -1:
+        #     self.train_loader.sampler.set_epoch(epoch)
+        # pbar = enumerate(self.train_loader)
+        # # Update dataloader attributes (optional)
+        # if epoch == (self.epochs - self.args.close_mosaic):
+        #     self._close_dataloader_mosaic()
+        #     self.train_loader.reset()
+        #
+        # if RANK in {-1, 0}:
+        #     LOGGER.info(self.progress_string())
+        #     pbar = TQDM(enumerate(self.train_loader), total=nb)
+        # for i, batch in pbar:
+        #     ni = i + nb * epoch
+        #     if self.args.plots:
+        #         self.plot_training_samples(batch, ni, threaded=False)
+
         while True:
             self.epoch = epoch
             self.run_callbacks("on_train_epoch_start")
@@ -440,6 +468,8 @@ class BaseTrainer:
                     # 只画前3个batch的和关闭马赛克的那前3个batch图像  SEEME 没啥用，直接不画
                     # if self.args.plots and ni in self.plot_idx:
                     #     self.plot_training_samples(batch, ni)
+                    if self.args.plots:
+                        self.plot_training_samples(batch, ni, threaded=False)
 
                 self.run_callbacks("on_train_batch_end")
 
@@ -682,7 +712,7 @@ class BaseTrainer:
         return ""
 
     # TODO: may need to put these following functions into callback
-    def plot_training_samples(self, batch, ni):
+    def plot_training_samples(self, batch, ni, threaded=True):
         """Plots training samples during YOLO training."""
         pass
 

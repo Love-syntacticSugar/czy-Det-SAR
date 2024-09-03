@@ -44,7 +44,7 @@ class SegmentationTrainer(yolo.detect.DetectionTrainer):
             self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
         )
 
-    def plot_training_samples(self, batch, ni):
+    def plot_training_samples(self, batch, ni, threaded=True):
         """Creates a plot of training sample images with labels and box coordinates."""
         plot_images(
             batch["img"],
@@ -55,6 +55,7 @@ class SegmentationTrainer(yolo.detect.DetectionTrainer):
             paths=batch["im_file"],
             fname=self.save_dir / f"train_batch{ni}.jpg",
             on_plot=self.on_plot,
+            threaded=threaded,
         )
 
     def plot_metrics(self):

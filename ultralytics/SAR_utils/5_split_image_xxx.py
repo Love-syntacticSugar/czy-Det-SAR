@@ -26,7 +26,6 @@
 from ultralytics.data.split_dota import split_trainval, split_test
 
 # 关于gap的选择：根据6_w_and_h_distribution.py，观察目标H和W的分布，选择300比较合适
-# TODO opencv.docx的word，有代码需要你写
 # TODO 裁剪后很多超参都要重新思考
 crop_size = 1024
 gap = 300

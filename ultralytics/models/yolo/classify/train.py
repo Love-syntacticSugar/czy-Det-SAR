@@ -139,7 +139,7 @@ class ClassificationTrainer(BaseTrainer):
                     self.run_callbacks("on_fit_epoch_end")
         LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}")
 
-    def plot_training_samples(self, batch, ni):
+    def plot_training_samples(self, batch, ni, threaded=True):
         """Plots training samples with their annotations."""
         plot_images(
             images=batch["img"],
@@ -147,4 +147,5 @@ class ClassificationTrainer(BaseTrainer):
             cls=batch["cls"].view(-1),  # warning: use .view(), not .squeeze() for Classify models
             fname=self.save_dir / f"train_batch{ni}.jpg",
             on_plot=self.on_plot,
+            threaded=threaded,
         )

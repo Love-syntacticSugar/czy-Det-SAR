@@ -55,7 +55,7 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
             self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
         )
 
-    def plot_training_samples(self, batch, ni):
+    def plot_training_samples(self, batch, ni, threaded=True):
         """Plot a batch of training samples with annotated class labels, bounding boxes, and keypoints."""
         images = batch["img"]
         kpts = batch["keypoints"]
@@ -72,6 +72,7 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
             paths=paths,
             fname=self.save_dir / f"train_batch{ni}.jpg",
             on_plot=self.on_plot,
+            threaded=threaded,
         )
 
     def plot_metrics(self):

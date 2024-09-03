@@ -25,19 +25,20 @@ def draw_boxes(image, boxes):
         cv2.line(image, (x4, y4), (x1, y1), (0, 255, 0), 2)
 
 def main():
-    annotations = read_annotations('groundtruth.txt')
-    image_folder = 'JPEGImages'
-    output_folder = 's2mask'
+    annotations = read_annotations('/home/csx/disk/clg/data/SAR/原label/groundtruth.txt')
+    image_folder = '/home/csx/disk/clg/data/SAR/images/val'
+    output_folder = '/home/csx/disk/clg/data/SAR_image_with_annotation/images/val'
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
     for image_name, boxes in annotations.items():
         image_path = os.path.join(image_folder, image_name)
-        image = cv2.imread(image_path)
-        draw_boxes(image, boxes)
-        output_path = os.path.join(output_folder, image_name)
-        cv2.imwrite(output_path, image)
+        if os.path.isfile(image_path):
+            image = cv2.imread(image_path)
+            draw_boxes(image, boxes)
+            output_path = os.path.join(output_folder, image_name)
+            cv2.imwrite(output_path, image)
 
 if __name__ == '__main__':
     main()

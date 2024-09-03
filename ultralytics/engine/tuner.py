@@ -87,7 +87,12 @@ class Tuner:
         # lr0 = np.linspace(lr0[0], lr0[1], num=lr_num).tolist()
         # lr0 = [5e-6, 1e-5, 3e-5, 5e-5, 7e-5, 9e-5, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4, 1e-3, 3e-3, 5e-3, 7e-3, 9e-3, 2e-2,
         #        3e-2]  # SEEME 第一次调直接强制改
-        lr0 = [5e-8, 1e-7, 5e-7, 1e-6]  # SEEME 第一次调直接强制改
+        lr0 = [1e-7, 5e-7,
+               1e-6, 5e-6, 8e-6,
+               1e-5, 3e-5, 5e-5, 7e-5, 9e-5,
+               1e-4, 3e-4, 5e-4, 7e-4, 9e-4,
+               1e-3, 3e-3, 5e-3, 7e-3, 9e-3]  # SEEME 第一次调直接强制改
+        # lr0 = [5e-8, 1e-7, 5e-7, 1e-6]  # SEEME 第一次调直接强制改
         space2 = {}
         if len(space) > 0:
             for key, bounds in space.items():
@@ -128,7 +133,7 @@ class Tuner:
                             trainer.train()
 
                             # 读取训练结果
-                            ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline/runs/tune/train/weights/best_fitness_1epoch.pt"
+                            ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/train/weights/best_fitness_1epoch.pt"
                             _, ckpt = attempt_load_one_weight(ckpt_file, use_ema_or_origin="ema")
                             metrics = ckpt["train_metrics"]
 
@@ -167,7 +172,7 @@ class Tuner:
                     trainer.train()
 
                     # 读取训练结果
-                    ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline/runs/tune/train/weights/best_fitness_1epoch.pt"
+                    ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/train/weights/best_fitness_1epoch.pt"
                     _, ckpt = attempt_load_one_weight(ckpt_file, use_ema_or_origin="ema")
                     metrics = ckpt["train_metrics"]
 
