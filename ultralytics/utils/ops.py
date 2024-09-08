@@ -544,6 +544,13 @@ def xyxyxyxy2xywhr(x):
         # NOTE: Use cv2.minAreaRect to get accurate xywhr,
         # especially some objects are cut off by augmentations in dataloader.
         (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
+        # if angle == -0.0 or angle == 0.0:
+        #     angle = 90
+        #     w, h = h, w
+        # TODO 难道0度更好预测？？其实可以统计一下谁多谁少的，但我觉得肯定90度多啊
+        # if angle == 90:
+        #     angle = 0
+        #     w, h = h, w
         rboxes.append([cx, cy, w, h, angle / 180 * np.pi])
     return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
 

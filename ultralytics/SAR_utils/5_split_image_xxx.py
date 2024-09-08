@@ -14,30 +14,27 @@
 #            此外，本来这比赛小目标就多，非常多几十像素的目标存在，你这一缩小，不纯完蛋
 #       所以，结论是:宁可放大也不要缩小
 #       由此便可以顺理成章推出：对于SAR数据集中的超大图像，split就是不缩小的最佳办法
-#
-#   TODO 但其实超过size超过1k的图像不过2k张，比例很少，如果你要split到1024，那效果可以说几乎没变化，可能会提一点点的精度吧（但做了肯定是好的）
-#        所以到底要split到什么尺寸？这个得试出来。目前已经试了256、640，建议试一试512、800、1024。
-#        由于5w张256，1w张800，所以我不认为1024会好，你放大好是好，但是放大过头了也不行，所以需要找一个折中，找一个最佳的放大尺寸
 # 2.但无论如何，都是要split的，这件事情只有益处没有坏处，所以这里就是做这件事情
 # 3.有件事你要知道：
 # 你的SAR数据集，对于256*256的图像足足有5w张（比如1.jpg），如果设置了crop_size为640，那裁剪结果只有一张，且name为：
 # 1__640__0___0.jpg，看名字似乎裁剪结果是640size的，实际上还是256，这个裁剪的图像和原图一模一样！只不过名字改了一下而已！
 # 所以本次比赛的SAR数据集，裁剪的效果不会很明显，因为大部分的图像都是256*256的，根本就没裁剪
+import sys
+
+sys.path.insert(0, "/home/csx/disk/clg/code/Detection-SAR")
 from ultralytics.data.split_dota import split_trainval, split_test
 
 # 关于gap的选择：根据6_w_and_h_distribution.py，观察目标H和W的分布，选择300比较合适
-# TODO 裁剪后很多超参都要重新思考
 crop_size = 1024
 gap = 300
 split_trainval(data_root="/home/csx/disk/clg/data/SAR",
-               save_dir=f"/home/csx/disk/clg/data/SAR_split_with_{gap}",
+               save_dir=f"/home/csx/disk/clg/data/SAR_split_with_{crop_size}",
                crop_size=crop_size,
                gap=gap)
 
 split_test(data_root="/home/csx/disk/clg/data/SAR",
-           save_dir=f"/home/csx/disk/clg/data/SAR_split_with_{gap}",
+           save_dir=f"/home/csx/disk/clg/data/SAR_split_with_{crop_size}",
            crop_size=crop_size,
            gap=gap)
 # TODO   label坐标保留了6位小数，原先是16位，因为我想了一下，不需要这么精准的，毕竟标的时候就存在误差，你存这么精准的干什么
 #  （如果想改，请去crop_and_save函数中改）
-

@@ -285,7 +285,7 @@ class OBBValidator(DetectionValidator):
                 b = bbox[:, :5].clone()
                 b[:, :2] += c
                 # 0.3 could get results close to the ones from official merging script, even slightly better.
-                # TODO 可修改：在non_max_suppression方法那里是0.5，这里表示iou大于0.3就丢弃，更苛刻了。
+                # TODO 可修改：在non_max_suppression方法那里是0.7，这里表示iou大于0.3就丢弃，更苛刻了。
                 #  1.而你要知道：你有整整5w张ship由于imgsizs=256<crop_size，压根没做过裁剪，它们其实可以不用做这里的NMS的，
                 #  就像以前那样直接拿来用但这里又做了一次NMS，而且比前向传播那里的non_max_suppression方法更严格用的是0.3.
                 #  导致可能又有一些ship被丢掉了。你懂我的意思嘛？我的意思是可能会比之前的效果差，因为筛选更严格了。如果不想这么严格怎么办
