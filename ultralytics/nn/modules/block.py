@@ -83,7 +83,7 @@ class LSKblock(nn.Module):
         return x * attn
 
 
-class Attention(nn.Module):
+class LSK_Attention(nn.Module):
     def __init__(self, d_model):
         super().__init__()
         self.proj_1 = nn.Conv2d(d_model, d_model, 1)  # shape完全不变，对应fig8中LK Selection模块的FC模块（可不是二维的那种哦）
@@ -148,7 +148,7 @@ class Block(nn.Module):
             layer_scale_init_value * torch.ones((dim)), requires_grad=True)
         self.layer_scale_2 = nn.Parameter(
             layer_scale_init_value * torch.ones((dim)), requires_grad=True)
-        self.attn = Attention(dim)
+        self.attn = LSK_Attention(dim)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)

@@ -389,6 +389,14 @@ class Model(nn.Module):
         self.model.load(weights)
         return self
 
+    def custom_load(self, func):
+        """
+        官方的load函数只限于装载v8的模型
+        所以这里我自己实现一个
+        """
+        func(self.model)
+        self.overrides["pretrained_func"] = func
+
     def save(self, filename: Union[str, Path] = "saved_model.pt", use_dill=True) -> None:
         """
         Saves the current model state to a file.

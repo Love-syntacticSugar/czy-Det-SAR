@@ -146,3 +146,4 @@ Albumentations: True # 控制是否使用Albumentations包、【注意，v8关�
 wb_project: # 控制wandb的工程名称，如果不传就会使用self.args.project或"YOLOv8"
 fetch_part_img_with_uniform_train: None # 用均匀分布从所有图片集中取出fetch_part_img_with_uniform张图片
 fetch_part_img_with_uniform_val: None # 用均匀分布从所有图片集中取出fetch_part_img_with_uniform张图片
+pretrained_func: None # 用户自定义一个pretrained_func函数，将model作为参数传入改方法后就可以按照自己的需求装载预训练模型了

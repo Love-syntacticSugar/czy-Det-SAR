@@ -646,6 +646,8 @@ class BaseTrainer:
         elif isinstance(self.args.pretrained, (str, Path)):
             weights, _ = attempt_load_one_weight(self.args.pretrained, self.args.use_ema_or_origin)
         self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
+        if self.args.pretrained_func is not None:
+            self.args.pretrained_func(self.model)
         return ckpt
 
     def optimizer_step(self):
