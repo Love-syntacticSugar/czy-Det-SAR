@@ -85,20 +85,14 @@ class Tuner:
         # 单独取出学习率进行处理
         lr0 = space.pop("lr0")
         # lr0 = np.linspace(lr0[0], lr0[1], num=lr_num).tolist()
-        # lr0 = [5e-6, 1e-5, 3e-5, 5e-5, 7e-5, 9e-5, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4, 1e-3, 3e-3, 5e-3, 7e-3, 9e-3, 2e-2,
-        #        3e-2]  # SEEME 第一次调直接强制改
-        lr0 = [1e-7, 5e-7,
-               1e-6, 5e-6, 8e-6,
-               1e-5, 3e-5, 5e-5, 7e-5, 9e-5,
-               1e-4, 3e-4, 5e-4, 7e-4, 9e-4,
-               1e-3, 3e-3, 5e-3, 7e-3, 9e-3]  # SEEME 第一次调直接强制改
-        # lr0 = [5e-8, 1e-7, 5e-7, 1e-6]  # SEEME 第一次调直接强制改
+
         space2 = {}
         if len(space) > 0:
             for key, bounds in space.items():
                 if key in ["weight_decay", "box"]:
                     low, high = bounds
                     random_value = np.linspace(low, high, num=every_lr_iter).tolist()
+                    random_value = [0.0005, 0.001, 0.002, 0.003, 0.004, 0.005, ]  # SEEME 临时改的
                     space2[key] = random_value
                 elif key in ["cls", "dfl"]:
                     low, high = bounds
@@ -110,14 +104,21 @@ class Tuner:
                     space2[key] = random_value
         count = 1
         for optim in optims:
-            for i in range(lr_num):
+            # SEEME 强制改
+            if optim == 'NAdam':
+                lr0 = [0.00003, 0.00004, 0.00005, 0.00006, 0.000065, 0.00007, 0.000075, 0.00008, ]
+            elif optim == 'AdamW':
+                lr0 = [0.00007, 0.00008, 0.00009, 0.0001, 0.00015, 0.0002, 0.00025]
+            else:
+                lr0 = [0.0008, 0.0009, 0.00095, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.004]
+            for i, lr in enumerate(lr0):
                 lr = lr0[i]
                 if len(space2) > 0:
                     for key, list_value in space2.items():
                         mutated_hyp = {"lr0": lr}
                         mutated_hyp["optimizer"] = optim
-                        self.tune_all_result_csv = self.tune_dir / f"tune_all_result_optim{optim}_lr{lr}_{key}.csv"
-                        self.tune_all_result_xlsx = self.tune_dir / f"tune_all_result_optim{optim}_lr{lr}_{key}.xlsx"
+                        self.tune_all_result_csv = self.tune_dir / f"tune_all_result_optim{optim}_{key}.csv"
+                        self.tune_all_result_xlsx = self.tune_dir / f"tune_all_result_optim{optim}_{key}.xlsx"
                         for value in list_value:
                             mutated_hyp[key] = value
 

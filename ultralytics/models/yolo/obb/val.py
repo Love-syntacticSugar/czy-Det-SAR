@@ -211,7 +211,7 @@ class OBBValidator(DetectionValidator):
 
                     with open(f'{pred_merged_txt / f"Task1_{classname}"}.txt', "a") as f:
                         f.writelines(f"{image_id} {score} {p[0]} {p[1]} {p[2]} {p[3]} {p[4]} {p[5]} {p[6]} {p[7]}\n")
-        if self.args.save_json and self.args.is_SAR and len(self.jdict):
+        if self.args.save_json and self.args.is_SAR and len(self.jdict) and not self.args.is_SAR_split:
             import json
             import re
             from collections import defaultdict

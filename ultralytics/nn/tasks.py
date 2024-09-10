@@ -55,6 +55,8 @@ from ultralytics.nn.modules import (
     Segment,
     WorldDetect,
     v10Detect,
+    OverlapPatchEmbed,
+    Block,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -912,6 +914,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     if verbose:
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch = [ch]
+    # dpr和cur都是为LSK服务的
+    # 后续如果使用4stage则需要改dpr中的8为”yaml文件中Block的总数量“（目前3stage的Blockd的总数量为8，注意我没有把head中的Block模块算上）
+    dpr = [x.item() for x in torch.linspace(0, 0.1, 8)]
+    cur = 0  # 专门为LSK模块的drop_path参数服务的
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
@@ -992,6 +998,19 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [c1, c2, *args[1:]]
         elif m is CBFuse:
             c2 = ch[f[-1]]
+        elif m is OverlapPatchEmbed:
+            c2 = args[3]
+        elif m is Block:
+            dim, c2 = ch[f], ch[f]
+            if i <= 10:  # 非head的Block模块使用特殊的drop_path_rate
+                drop_path_rate = dpr[cur]
+                cur += 1
+                if len(args) == 2:
+                    args = [dim, *args[0:2], drop_path_rate]
+                else:
+                    args = [dim, *args[0:2], drop_path_rate, args[2]]
+            else:
+                args = [dim, *args[0:]]
         else:
             c2 = ch[f]
 

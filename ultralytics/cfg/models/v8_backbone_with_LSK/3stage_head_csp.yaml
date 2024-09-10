@@ -1,0 +1,55 @@
+# 此模型是将v8的x模型中全部的CSP模块改为LSK模块
+
+# Parameters
+nc: 1 # 类别数量
+scale: x
+scales:
+  # [depth, width, max_channels]
+  # 这里的depth为每个模块的repeat数，越大说明repeat次数越多，网络越深。为什么是小数呢？因为是相对于l模型而言的，
+  # width指通道数，对l模型而言，如果是64通道数，对于n就是make_divisible(min(c2, max_channels) * width, 8)【能被8整除】
+  n: [ 0.33, 0.25, 1024 ] # YOLOv8n summary: 225 layers,  3157200 parameters,  3157184 gradients,   8.9 GFLOPs
+  s: [ 0.33, 0.50, 1024 ] # YOLOv8s summary: 225 layers, 11166560 parameters, 11166544 gradients,  28.8 GFLOPs
+  m: [ 0.67, 0.75, 768 ] # YOLOv8m summary: 295 layers, 25902640 parameters, 25902624 gradients,  79.3 GFLOPs
+  l: [ 1.00, 1.00, 512 ] # YOLOv8l summary: 365 layers, 43691520 parameters, 43691504 gradients, 165.7 GFLOPs
+  x: [ 1.00, 1.25, 512 ] # YOLOv8x summary: 365 layers, 68229648 parameters, 68229632 gradients, 258.5 GFLOPs
+
+# YOLOv8.0n backbone
+backbone:
+  # [from, repeats, module, args]  from：这一层的输入来自于第几层的输出  repeat：这个模块重复几次
+  # 这里的 -1 是很巧妙的！因为在后续for循环时可以方便地取出上一层的输出通道数作为本层的输入通道数，具体见parse_model方法
+  - [ -1, 1, OverlapPatchEmbed, [ 7, 4, 3, 64 ] ] # 0
+  - [ -1, 1, Block, [ 8, 0.1 ] ] # 1  dim参数等你去通过c2加入args中；drop_path参数在parse_model方法中实现
+  - [ -1, 1, Block, [ 8, 0.1 ,True] ] # 2  dim参数等你去通过c2加入args中；drop_path参数在parse_model方法中实现
+  - [ -1, 1, OverlapPatchEmbed, [ 3, 2, 64, 128 ] ] # 3
+  - [ -1, 1, Block, [ 8, 0.1 ] ] # 4
+  - [ -1, 1, Block, [ 8, 0.1 ,True] ] # 5
+  - [ -1, 1, OverlapPatchEmbed, [ 3, 2, 128, 320 ] ] # 6 注意！！！不是256！！！！
+  - [ -1, 1, Block, [ 4, 0.1 ] ] # 7
+  - [ -1, 1, Block, [ 4, 0.1 ] ] # 8
+  - [ -1, 1, Block, [ 4, 0.1 ] ] # 9
+  - [ -1, 1, Block, [ 4, 0.1 ,True] ] # 10
+
+
+# YOLOv8.0n head
+# 在v8中仍然是CSP模块，但head中的CSP模块都是没有加跳连的。
+# 对于LSKNet来说，后续也可以将head中的Block去掉跳连不过暂时保留，不做过多改动
+
+head:
+  - [ -1, 1, nn.Upsample, [ None, 2, "nearest" ] ]   #11
+  - [ [ -1, 5 ], 1, Concat, [ 1 ] ] # cat backbone P4
+  - [ -1, 3, C2f, [512] ] # 13
+
+
+  - [ -1, 1, nn.Upsample, [ None, 2, "nearest" ] ]
+  - [ [ -1, 2 ], 1, Concat, [ 1 ] ] # cat backbone P3
+  - [ -1, 3, C2f, [ 256 ] ] # 16 (P3/8-small)
+
+  - [ -1, 1, Conv, [ 256, 3, 2 ] ]
+  - [ [ -1, 13 ], 1, Concat, [ 1 ] ] # cat head P4
+  - [ -1, 3, C2f, [512 ] ] # 19 (P4/16-medium)
+
+  - [ -1, 1, Conv, [ 512, 3, 2 ] ]
+  - [ [ -1, 10 ], 1, Concat, [ 1 ] ] # cat head P5
+  - [ -1, 3, C2f, [1024 ] ] # 22 (P5/32-large)
+
+  - [ [ 16, 19, 22 ], 1, OBB, [ nc, 1 ] ] # OBB(P3, P4, P5)

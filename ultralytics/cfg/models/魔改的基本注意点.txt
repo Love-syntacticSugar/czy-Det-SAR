@@ -1,0 +1,10 @@
+基本步骤：
+1.首先自然是再nn.modules.block.py中添加对应的模块了，并给__all__添加模块名称
+2.nn.modules.__init__.py中给__all__添加模块名称
+3.nn.task.py的parse_model方法进行对应的修改（每次改都过一遍逻辑，直到熟练为止）
+4.在cfg.models中定义模型结构的yaml文件
+
+特殊：
+对于head的修改，可能涉及更多，比如设计nn.modules.head.py的修改
+其它：
+1.能继承就继承
