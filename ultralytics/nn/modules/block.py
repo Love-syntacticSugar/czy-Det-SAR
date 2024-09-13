@@ -48,7 +48,196 @@ __all__ = (
     "SCDown",
     "OverlapPatchEmbed",
     "Block",
+    "DyConv",
 )
+
+# SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead start🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+# 注意！！mmcv的安装需要和pytorch的版本相对应，见官网：https://mmcv.readthedocs.io/zh-cn/latest/get_started/installation.html
+from mmcv.ops import ModulatedDeformConv2d
+
+
+def _make_divisible(v, divisor, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
+
+
+class h_sigmoid(nn.Module):
+    def __init__(self, inplace=True, h_max=1):
+        super(h_sigmoid, self).__init__()
+        self.relu = nn.ReLU6(inplace=inplace)
+        self.h_max = h_max
+
+    def forward(self, x):
+        return self.relu(x + 3) * self.h_max / 6
+
+
+class DYReLU(nn.Module):
+    def __init__(self, inp, oup, reduction=4, lambda_a=1.0, K2=True, use_bias=True, use_spatial=False,
+                 init_a=[1.0, 0.0], init_b=[0.0, 0.0]):
+        super(DYReLU, self).__init__()
+        self.oup = oup
+        self.lambda_a = lambda_a * 2
+        self.K2 = K2
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+
+        self.use_bias = use_bias
+        if K2:
+            self.exp = 4 if use_bias else 2
+        else:
+            self.exp = 2 if use_bias else 1
+        self.init_a = init_a
+        self.init_b = init_b
+
+        # determine squeeze
+        if reduction == 4:
+            squeeze = inp // reduction
+        else:
+            squeeze = _make_divisible(inp // reduction, 4)
+        # print('reduction: {}, squeeze: {}/{}'.format(reduction, inp, squeeze))
+        # print('init_a: {}, init_b: {}'.format(self.init_a, self.init_b))
+
+        self.fc = nn.Sequential(
+            nn.Linear(inp, squeeze),
+            nn.ReLU(inplace=True),
+            nn.Linear(squeeze, oup * self.exp),
+            h_sigmoid()
+        )
+        if use_spatial:
+            self.spa = nn.Sequential(
+                nn.Conv2d(inp, 1, kernel_size=1),
+                nn.BatchNorm2d(1),
+            )
+        else:
+            self.spa = None
+
+    def forward(self, x):
+        if isinstance(x, list):
+            x_in = x[0]
+            x_out = x[1]
+        else:
+            x_in = x
+            x_out = x
+        b, c, h, w = x_in.size()
+        y = self.avg_pool(x_in).view(b, c)
+        y = self.fc(y).view(b, self.oup * self.exp, 1, 1)
+        if self.exp == 4:
+            a1, b1, a2, b2 = torch.split(y, self.oup, dim=1)
+            a1 = (a1 - 0.5) * self.lambda_a + self.init_a[0]  # 1.0
+            a2 = (a2 - 0.5) * self.lambda_a + self.init_a[1]
+
+            b1 = b1 - 0.5 + self.init_b[0]
+            b2 = b2 - 0.5 + self.init_b[1]
+            out = torch.max(x_out * a1 + b1, x_out * a2 + b2)
+        elif self.exp == 2:
+            if self.use_bias:  # bias but not PL
+                a1, b1 = torch.split(y, self.oup, dim=1)
+                a1 = (a1 - 0.5) * self.lambda_a + self.init_a[0]  # 1.0
+                b1 = b1 - 0.5 + self.init_b[0]
+                out = x_out * a1 + b1
+
+            else:
+                a1, a2 = torch.split(y, self.oup, dim=1)
+                a1 = (a1 - 0.5) * self.lambda_a + self.init_a[0]  # 1.0
+                a2 = (a2 - 0.5) * self.lambda_a + self.init_a[1]
+                out = torch.max(x_out * a1, x_out * a2)
+
+        elif self.exp == 1:
+            a1 = y
+            a1 = (a1 - 0.5) * self.lambda_a + self.init_a[0]  # 1.0
+            out = x_out * a1
+
+        if self.spa:
+            ys = self.spa(x_in).view(b, -1)
+            ys = F.softmax(ys, dim=1).view(b, 1, h, w) * h * w
+            ys = F.hardtanh(ys, 0, 3, inplace=True) / 3
+            out = out * ys
+
+        return out
+
+
+class Conv3x3Norm(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, stride):
+        super(Conv3x3Norm, self).__init__()
+
+        self.conv = ModulatedDeformConv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
+        self.bn = nn.GroupNorm(num_groups=16, num_channels=out_channels)
+
+    def forward(self, input, **kwargs):
+        x = self.conv(input.contiguous(), **kwargs)
+        x = self.bn(x)
+        return x
+
+
+class DyConv(nn.Module):
+    def __init__(self, in_channels=256, out_channels=256, conv_func=Conv3x3Norm):
+        super(DyConv, self).__init__()
+
+        self.DyConv = nn.ModuleList()
+        self.DyConv.append(conv_func(in_channels, out_channels, 1))
+        self.DyConv.append(conv_func(in_channels, out_channels, 1))
+        self.DyConv.append(conv_func(in_channels, out_channels, 2))
+
+        self.AttnConv = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(in_channels, 1, kernel_size=1),
+            nn.ReLU(inplace=True))
+
+        self.h_sigmoid = h_sigmoid()
+        self.relu = DYReLU(in_channels, out_channels)
+        self.offset = nn.Conv2d(in_channels, 27, kernel_size=3, stride=1, padding=1)
+        self.init_weights()
+
+    def init_weights(self):
+        for m in self.DyConv.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight.data, 0, 0.01)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+        for m in self.AttnConv.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight.data, 0, 0.01)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x):
+        next_x = {}
+        feature_names = list(x.keys())
+        for level, name in enumerate(feature_names):
+
+            feature = x[name]
+
+            offset_mask = self.offset(feature)
+            offset = offset_mask[:, :18, :, :]
+            mask = offset_mask[:, 18:, :, :].sigmoid()
+            conv_args = dict(offset=offset, mask=mask)
+
+            temp_fea = [self.DyConv[1](feature, **conv_args)]
+            if level > 0:
+                temp_fea.append(self.DyConv[2](x[feature_names[level - 1]], **conv_args))
+            if level < len(x) - 1:
+                input = x[feature_names[level + 1]]
+                temp_fea.append(F.interpolate(self.DyConv[0](input, **conv_args),
+                                              size=[feature.size(2), feature.size(3)]))
+            attn_fea = []
+            res_fea = []
+            for fea in temp_fea:
+                res_fea.append(fea)
+                attn_fea.append(self.AttnConv(fea))
+
+            res_fea = torch.stack(res_fea)
+            spa_pyr_attn = self.h_sigmoid(torch.stack(attn_fea))
+            mean_fea = torch.mean(res_fea * spa_pyr_attn, dim=0, keepdim=False)
+            next_x[name] = self.relu(mean_fea)
+
+        return next_x
+
+
+# SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead end🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
 
 # SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 LSK start🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
 from functools import partial
@@ -577,7 +766,7 @@ class MaxSigmoidAttnBlock(nn.Module):
 
         aw = torch.einsum("bmchw,bnmc->bmhwn", embed, guide)
         aw = aw.max(dim=-1)[0]
-        aw = aw / (self.hc**0.5)
+        aw = aw / (self.hc ** 0.5)
         aw = aw + self.bias[None, :, None, None]
         aw = aw.sigmoid() * self.scale
 
@@ -641,7 +830,7 @@ class ImagePoolingAttn(nn.Module):
         """Executes attention mechanism on input tensor x and guide tensor."""
         bs = x[0].shape[0]
         assert len(x) == self.nf
-        num_patches = self.k**2
+        num_patches = self.k ** 2
         x = [pool(proj(x)).view(bs, -1, num_patches) for (x, proj, pool) in zip(x, self.projections, self.im_pools)]
         x = torch.cat(x, dim=-1).transpose(1, 2)
         q = self.query(text)
@@ -654,7 +843,7 @@ class ImagePoolingAttn(nn.Module):
         v = v.reshape(bs, -1, self.nh, self.hc)
 
         aw = torch.einsum("bnmc,bkmc->bmnk", q, k)
-        aw = aw / (self.hc**0.5)
+        aw = aw / (self.hc ** 0.5)
         aw = F.softmax(aw, dim=-1)
 
         x = torch.einsum("bmnk,bkmc->bnmc", aw, v)
@@ -996,7 +1185,7 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.key_dim = int(self.head_dim * attn_ratio)
-        self.scale = self.key_dim**-0.5
+        self.scale = self.key_dim ** -0.5
         nh_kd = self.key_dim * num_heads
         h = dim + nh_kd * 2
         self.qkv = Conv(dim, h, 1, act=False)

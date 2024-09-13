@@ -65,8 +65,13 @@ class Tuner:
             "copy_paste": (1e-4, 5e-3),  # segment copy-paste (probability)
         }
         self.args = get_cfg(overrides=args)
-        self.tune_dir = get_save_dir(self.args, name="tune_result")
-        self.tune_dir.mkdir(parents=True, exist_ok=True)
+
+        # self.tune_dir = get_save_dir(self.args, name="tune_result")
+        from pathlib import Path
+        self.tune_dir = Path(
+            "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/tune_result2")
+        # self.tune_dir.mkdir(parents=True, exist_ok=True)
+
         self.prefix = colorstr("Tuner: ")
         LOGGER.info(
             f"{self.prefix}Initialized Tuner instance with 'tune_dir={self.tune_dir}'\n")
@@ -106,11 +111,11 @@ class Tuner:
         for optim in optims:
             # SEEME 强制改
             if optim == 'NAdam':
-                lr0 = [0.00003, 0.00004, 0.00005, 0.00006, 0.000065, 0.00007, 0.000075, 0.00008, ]
+                lr0 = [0.000042, 0.000044, 0.000046, 0.000048, ]
             elif optim == 'AdamW':
                 lr0 = [0.00007, 0.00008, 0.00009, 0.0001, 0.00015, 0.0002, 0.00025]
             else:
-                lr0 = [0.0008, 0.0009, 0.00095, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.004]
+                lr0 = [0.004]
             for i, lr in enumerate(lr0):
                 lr = lr0[i]
                 if len(space2) > 0:

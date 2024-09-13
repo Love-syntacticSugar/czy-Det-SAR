@@ -10,7 +10,7 @@ from torch.nn.init import constant_, xavier_uniform_
 
 from ultralytics.utils.tal import TORCH_1_10, dist2bbox, dist2rbox, make_anchors
 
-from .block import DFL, BNContrastiveHead, ContrastiveHead, Proto
+from .block import DFL, BNContrastiveHead, ContrastiveHead, Proto, DyConv
 from .conv import Conv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
@@ -29,7 +29,7 @@ class Detect(nn.Module):
     anchors = torch.empty(0)  # init
     strides = torch.empty(0)  # init
 
-    def __init__(self, nc=80, ch=()):
+    def __init__(self, nc=80, ch=(), num_DyConv=None, DyConv_out_channel=None, ):
         """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
         super().__init__()
         self.nc = nc  # number of classes
@@ -48,10 +48,47 @@ class Detect(nn.Module):
             self.one2one_cv2 = copy.deepcopy(self.cv2)
             self.one2one_cv3 = copy.deepcopy(self.cv3)
 
+        # SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead start🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+        self.num_DyConv = num_DyConv
+        self.DyConv_out_channel = DyConv_out_channel
+        if self.num_DyConv and self.DyConv_out_channel:
+            # SEEME 由于动态头要求3张特征图的通道数相同，所以这里如何统一这3张特征图的通道数很有说法
+            #       idea1：最简单粗暴的方法就是将yaml文件中的输出通道数改为相同的即可
+            #       idea2：将原来的不一样的输出再过一个Conv2d进行统一通道数，过了动态头后再过一遍Conv2d恢复原来的通道数
+            #               这种保留了v8的架构，但增加了nl*2个Conv层
+            #               但效果不敢想，比如原来v8的输出是1024，但是你冷不丁改到256谁顶得住呢
+            #               此外，如果你通道数是256，那你的计算图大小会大到离谱。举个例子：20*20*1024和80*80*256-->20*20*512和80*80*512
+            #               它们的差距为2867200与4300800，而且你别忘了，后面80*80*512还会过很多的Conv层，那参数量不敢想
+            #       idea3：根据官网提供的预训练结果决定通道数（官网用的256，而且head的个数为6个）
+            #       idea4：如果你怕输出太大，考虑改动态头里面中间层的输出通道数（蠢：懂人家的结构是最蠢的，不推荐）
+            #       推荐1：idea2+idea3的结合，这样你能最大程度地利用预训练模型，就多了nl*2Conv层的参数没学习
+            #       推荐2：idea1+idea3的结合，这样你还能利用前15层的v8预训练参数+动态头的预训练参数(剩下的就要重新训练了)
+            #       综上所述：暂时选择推荐1来实现
+            # SEEME 此外，关于动态头我还有5个idea在word中，但暂时不动它
+            self.dy_cv1 = nn.ModuleList(Conv(c, DyConv_out_channel, 3) for c in ch)
+            self.dy_cv2 = nn.ModuleList(Conv(DyConv_out_channel, c, 3) for c in ch)
+            dyhead_tower = []
+            for i in range(num_DyConv):
+                dyhead_tower.append(DyConv(DyConv_out_channel, DyConv_out_channel))
+            # self.add_module('dyhead_tower', nn.Sequential(*dyhead_tower))
+            self.dyhead_tower = nn.Sequential(*dyhead_tower)  # 哥的pytorch源码不是白看的，这行代码也能达到上述代码的效果
+        # SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead end🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
         if self.end2end:
             return self.forward_end2end(x)
+
+        # SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead start🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+        if self.num_DyConv and self.DyConv_out_channel:
+            for i in range(self.nl):
+                x[i] = self.dy_cv1[i](x[i])
+            tensor_dict = {i: tensor for i, tensor in enumerate(x)}
+            x = self.dyhead_tower(tensor_dict)
+            x = list(x.values())
+            for i in range(self.nl):
+                x[i] = self.dy_cv2[i](x[i])
+        # SEEME 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 DyHead end🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
 
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
@@ -95,7 +132,7 @@ class Detect(nn.Module):
 
         if self.export and self.format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:  # avoid TF FlexSplitV ops
             box = x_cat[:, : self.reg_max * 4]
-            cls = x_cat[:, self.reg_max * 4 :]
+            cls = x_cat[:, self.reg_max * 4:]
         else:
             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
 
@@ -191,9 +228,9 @@ class Segment(Detect):
 class OBB(Detect):
     """YOLOv8 OBB detection head for detection with rotation models."""
 
-    def __init__(self, nc=80, ne=1, ch=()):
+    def __init__(self, nc=80, ne=1, ch=(), num_DyConv=None, DyConv_out_channel=None, ):
         """Initialize OBB with number of classes `nc` and layer channels `ch`."""
-        super().__init__(nc, ch)
+        super().__init__(nc, ch, num_DyConv, DyConv_out_channel)
         self.ne = ne  # number of extra parameters
 
         c4 = max(ch[0] // 4, self.ne)
@@ -306,7 +343,7 @@ class WorldDetect(Detect):
 
         if self.export and self.format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:  # avoid TF FlexSplitV ops
             box = x_cat[:, : self.reg_max * 4]
-            cls = x_cat[:, self.reg_max * 4 :]
+            cls = x_cat[:, self.reg_max * 4:]
         else:
             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
 
@@ -346,23 +383,23 @@ class RTDETRDecoder(nn.Module):
     export = False  # export mode
 
     def __init__(
-        self,
-        nc=80,
-        ch=(512, 1024, 2048),
-        hd=256,  # hidden dim
-        nq=300,  # num queries
-        ndp=4,  # num decoder points
-        nh=8,  # num head
-        ndl=6,  # num decoder layers
-        d_ffn=1024,  # dim of feedforward
-        dropout=0.0,
-        act=nn.ReLU(),
-        eval_idx=-1,
-        # Training args
-        nd=100,  # num denoising
-        label_noise_ratio=0.5,
-        box_noise_scale=1.0,
-        learnt_init_query=False,
+            self,
+            nc=80,
+            ch=(512, 1024, 2048),
+            hd=256,  # hidden dim
+            nq=300,  # num queries
+            ndp=4,  # num decoder points
+            nh=8,  # num head
+            ndl=6,  # num decoder layers
+            d_ffn=1024,  # dim of feedforward
+            dropout=0.0,
+            act=nn.ReLU(),
+            eval_idx=-1,
+            # Training args
+            nd=100,  # num denoising
+            label_noise_ratio=0.5,
+            box_noise_scale=1.0,
+            learnt_init_query=False,
     ):
         """
         Initializes the RTDETRDecoder module with the given parameters.
@@ -474,7 +511,7 @@ class RTDETRDecoder(nn.Module):
 
             valid_WH = torch.tensor([w, h], dtype=dtype, device=device)
             grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_WH  # (1, h, w, 2)
-            wh = torch.ones_like(grid_xy, dtype=dtype, device=device) * grid_size * (2.0**i)
+            wh = torch.ones_like(grid_xy, dtype=dtype, device=device) * grid_size * (2.0 ** i)
             anchors.append(torch.cat([grid_xy, wh], -1).view(-1, h * w, 4))  # (1, h*w, 4)
 
         anchors = torch.cat(anchors, 1)  # (1, h*w*nl, 4)

@@ -55,6 +55,7 @@ from .block import (
     SCDown,
     OverlapPatchEmbed,
     Block,
+    DyConv,
 )
 from .conv import (
     CBAM,
@@ -154,4 +155,5 @@ __all__ = (
     "SCDown",
     "OverlapPatchEmbed",
     "Block",
+    "DyConv",
 )
