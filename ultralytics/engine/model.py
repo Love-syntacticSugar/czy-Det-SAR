@@ -835,6 +835,7 @@ class Model(nn.Module):
             lr_num=10,
             every_lr_iter=5,
             space=None,
+            weight_path=None,
             *args,
             **kwargs,
     ):
@@ -872,7 +873,8 @@ class Model(nn.Module):
             from .tuner import Tuner
 
             args = {**self.overrides, **kwargs, "mode": "train"}  # highest priority args on the right
-            return Tuner(args=args, _callbacks=self.callbacks)(lr_num=lr_num, every_lr_iter=every_lr_iter, space=space)
+            return Tuner(args=args, _callbacks=self.callbacks)(lr_num=lr_num, every_lr_iter=every_lr_iter, space=space,
+                                                               weight_path=weight_path)
 
     def _apply(self, fn) -> "Model":
         """

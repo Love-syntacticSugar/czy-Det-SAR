@@ -66,17 +66,17 @@ class Tuner:
         }
         self.args = get_cfg(overrides=args)
 
-        # self.tune_dir = get_save_dir(self.args, name="tune_result")
-        from pathlib import Path
-        self.tune_dir = Path(
-            "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/tune_result2")
-        # self.tune_dir.mkdir(parents=True, exist_ok=True)
+        self.tune_dir = get_save_dir(self.args, name="tune_result")
+        # from pathlib import Path
+        # self.tune_dir = Path(
+        #     "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/tune_result2")
+        self.tune_dir.mkdir(parents=True, exist_ok=True)
 
         self.prefix = colorstr("Tuner: ")
         LOGGER.info(
             f"{self.prefix}Initialized Tuner instance with 'tune_dir={self.tune_dir}'\n")
 
-    def __call__(self, lr_num=10, every_lr_iter=5, space=None, cleanup=True):
+    def __call__(self, lr_num=10, every_lr_iter=5, weight_path=None, space=None, cleanup=True):
         """
         :param lr_num: 这个表明使用几种学习率
         :param every_lr_iter: 每一个学习率下剩余的参数采用随机均匀分布取一个数,该参数表明每一种参数跑几种随机组合
@@ -87,7 +87,7 @@ class Tuner:
 
         # 单独取出优化器
         optims = space.pop("optimizer")
-        # 单独取出学习率进行处理
+        # 单独取出学习率
         lr0 = space.pop("lr0")
         # lr0 = np.linspace(lr0[0], lr0[1], num=lr_num).tolist()
 
@@ -97,7 +97,8 @@ class Tuner:
                 if key in ["weight_decay", "box"]:
                     low, high = bounds
                     random_value = np.linspace(low, high, num=every_lr_iter).tolist()
-                    random_value = [0.0005, 0.001, 0.002, 0.003, 0.004, 0.005, ]  # SEEME 临时改的
+                    # random_value = [0.0005, 0.001, 0.002, 0.003, 0.004, 0.005, ]  # SEEME 临时改的
+                    random_value = [0.0005, 0.0025, 0.005, ]  # SEEME 临时改的
                     space2[key] = random_value
                 elif key in ["cls", "dfl"]:
                     low, high = bounds
@@ -111,11 +112,11 @@ class Tuner:
         for optim in optims:
             # SEEME 强制改
             if optim == 'NAdam':
-                lr0 = [0.000042, 0.000044, 0.000046, 0.000048, ]
+                lr0 = [0.000005, 0.000008, 0.00001, 0.00003, 0.00005, 0.00007, 0.00009, 0.0002, 0.0004]
             elif optim == 'AdamW':
-                lr0 = [0.00007, 0.00008, 0.00009, 0.0001, 0.00015, 0.0002, 0.00025]
+                lr0 = [0.000005, 0.000008, 0.00001, 0.00003, 0.00005, 0.00007, 0.00009, 0.0002, 0.0004]
             else:
-                lr0 = [0.004]
+                lr0 = [0.0004, 0.0008, 0.001, 0.003, 0.005, 0.007, 0.009, 0.01, ]
             for i, lr in enumerate(lr0):
                 lr = lr0[i]
                 if len(space2) > 0:
@@ -139,7 +140,8 @@ class Tuner:
                             trainer.train()
 
                             # 读取训练结果
-                            ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/train/weights/best_fitness_1epoch.pt"
+                            assert weight_path is not None
+                            ckpt_file = weight_path
                             _, ckpt = attempt_load_one_weight(ckpt_file, use_ema_or_origin="ema")
                             metrics = ckpt["train_metrics"]
 
@@ -178,7 +180,7 @@ class Tuner:
                     trainer.train()
 
                     # 读取训练结果
-                    ckpt_file = "/home/csx/disk/clg/code/Detection-SAR/tests/v1_yolov8_baseline_7_3090/runs/tune/train/weights/best_fitness_1epoch.pt"
+                    ckpt_file = weight_path
                     _, ckpt = attempt_load_one_weight(ckpt_file, use_ema_or_origin="ema")
                     metrics = ckpt["train_metrics"]
 

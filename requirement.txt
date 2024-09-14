@@ -11,4 +11,7 @@ seaborn>=0.11.0
 albumentations>=1.4.6
 wandb
 ultralytics-thop>=2.0.0
-mmcv==2.2.0
+
+# 以下为动态头所需的库，我是手动安装的
+mmcv==2.2.0（# 注意！！mmcv的安装需要和pytorch的版本相对应，见官网：https://mmcv.readthedocs.io/zh-cn/latest/get_started/installation.html）
+timm
