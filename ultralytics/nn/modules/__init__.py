@@ -56,6 +56,7 @@ from .block import (
     OverlapPatchEmbed,
     Block,
     DyConv,
+    DySample,
 )
 from .conv import (
     CBAM,
@@ -156,4 +157,5 @@ __all__ = (
     "OverlapPatchEmbed",
     "Block",
     "DyConv",
+    "DySample",
 )

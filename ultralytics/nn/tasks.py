@@ -57,6 +57,7 @@ from ultralytics.nn.modules import (
     v10Detect,
     OverlapPatchEmbed,
     Block,
+    DySample,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1016,6 +1017,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                     args = [dim, *args[0:2], drop_path_rate, args[2]]
             else:
                 args = [dim, *args[0:]]
+        elif m in DySample:
+            in_channel, c2 = ch[f], ch[f]
+            args.insert(0, in_channel)
         else:
             c2 = ch[f]
 
