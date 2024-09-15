@@ -1017,7 +1017,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                     args = [dim, *args[0:2], drop_path_rate, args[2]]
             else:
                 args = [dim, *args[0:]]
-        elif m in DySample:
+        elif m is DySample:
             in_channel, c2 = ch[f], ch[f]
             args.insert(0, in_channel)
         else:
