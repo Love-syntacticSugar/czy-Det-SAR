@@ -88,7 +88,7 @@ class DySample(nn.Module):
         self.offset = nn.Conv2d(in_channels, out_channels, 1)# HW不变
         normal_init(self.offset, std=0.001)
         if dyscope:
-            self.scope = nn.Conv2d(in_channels, out_channels, 1, bias=False)
+            self.scope = nn.Conv2d(in_channels, out_channels, 1, bias=False)  # TODO 官方的权重文件中是有bias的
             constant_init(self.scope, val=0.)
 
         self.register_buffer('init_pos', self._init_pos())
