@@ -395,7 +395,30 @@ class Model(nn.Module):
         所以这里我自己实现一个
         """
         func(self.model)
-        self.overrides["pretrained_func"] = func
+        # 1.更新"pretrained_func"参数，DDP需要它！！
+        # 2.不能直接传self.overrides["pretrained_func"] = func  有两个地方会出问题
+        #   （1）trainer类的__init__方法中的yaml_save方法中有：data[k] = str(v)，会将func转为str
+        #   （2）dist.py中content的格式化字符串也会将func转为str
+        # 3.故这里采用了一个较为复杂的解决方案：根据func得到func所在的包的位置，然后将包的位置转为字符串，供trainer中的setup_model方法使用
+        import inspect
+        import os
+        import sys
+        file_path = inspect.getfile(func)  # 得到func所在的py文件的绝对路径
+        abs_path = os.path.abspath(file_path)  # 转换为绝对路径
+        # 1.sys.modules：Python 模块的缓存字典
+        #   sys.modules 是 Python 中一个内置的字典，它存储了当前 Python 解释器加载的所有模块。每个模块的名称（字符串形式）作为字典的键，对应的模块对象作为值
+        # 2.func.__module__:一般来说你的func会定义在你运行的那个脚本中，所以这里func.__module__的结果就是“__main__”
+        # 3.sys.modules[func.__module__].__file__：
+        #   等价于：sys.modules[“__main__”].__file__，其中sys.modules[“__main__”]的模块结果为就是那个你运行的py文件
+        #   所以这里的结果为：'C:/Codefield/YOLOv8/Detection-SAR/tests/test_on_windows.py'
+        # 4.现在你知道为什么sys的环境路径中会有你运行文件的当前目录了嘛，差不多就是这样来的
+        # 5.root_dir结果就是“你运行文件的当前目录”，它是在sys的系统环境路径中的
+        root_dir = os.path.abspath(os.path.dirname(sys.modules[func.__module__].__file__))
+        rel_path = os.path.relpath(abs_path, root_dir)  # 计算abs_path相对于root_dir的路径
+        module_name = rel_path[:-3].replace(os.sep, '.')  # 去掉.py后缀并替换/为.
+        fun_name = func.__name__
+        # 更新self.overrides["pretrained_func"]。到时候你就可以根据{module_name} {fun_name}进行import了
+        self.overrides["pretrained_func"] = f"{module_name} {fun_name}"
 
     def save(self, filename: Union[str, Path] = "saved_model.pt", use_dill=True) -> None:
         """

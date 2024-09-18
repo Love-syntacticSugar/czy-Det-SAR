@@ -647,7 +647,19 @@ class BaseTrainer:
             weights, _ = attempt_load_one_weight(self.args.pretrained, self.args.use_ema_or_origin)
         self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
         if self.args.pretrained_func is not None:
-            self.args.pretrained_func(self.model)
+            # 法一：
+            import importlib
+            # 以下两行代码就相当于：from xxx import pretrain_model_func
+            module = importlib.import_module(self.args.pretrained_func.split()[0])
+            func = getattr(module, self.args.pretrained_func.split()[1])
+            func(self.model)
+            # 法二：
+            # exec 函数可以将字符串作为 Python 代码执行。但需要注意，exec 函数功能强大，但也存在安全风险，因为它可以执行任意 Python 代码。
+            # 因此，除非你完全信任输入的字符串，否则不建议使用 exec
+            # exec(f"from {self.args.pretrained_func.split()[0]} import {self.args.pretrained_func.split()[1]}")
+            # 法三：
+            # from tests.v4_yolov8_with_Dyhead.train1_pretrain_on_DOTA_ship import pretrain_model_func
+            # pretrain_model_func(self.model)
         return ckpt
 
     def optimizer_step(self):
